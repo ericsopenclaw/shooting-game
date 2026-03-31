@@ -910,7 +910,7 @@ canvas.addEventListener('touchstart', e => {
   initAudio();
   if (state === 'title' || state === 'gameover') { startGame(); return; }
   for (const t of e.changedTouches) {
-    if (t.clientX < W * 0.5 && !joystickActive) {
+    if (!joystickActive) {
       joystickActive = true;
       joystickTouchId = t.identifier;
       joystickOrigin.x = t.clientX;
@@ -939,13 +939,15 @@ canvas.addEventListener('touchmove', e => {
 
 canvas.addEventListener('touchend', e => {
   e.preventDefault();
+  let stillActive = false;
   for (const t of e.touches) {
-    if (t.identifier === joystickTouchId) {
-      joystickActive = false;
-      joystickX = 0;
-      joystickY = 0;
-      joystickTouchId = null;
-    }
+    if (t.identifier === joystickTouchId) stillActive = true;
+  }
+  if (!stillActive) {
+    joystickActive = false;
+    joystickX = 0;
+    joystickY = 0;
+    joystickTouchId = null;
   }
 }, {passive: false});
 
