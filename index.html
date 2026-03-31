@@ -728,9 +728,21 @@ function checkCollisions() {
   for (let pi = powerups.length - 1; pi >= 0; pi--) {
     const p = powerups[pi];
     if (rectsOverlap(p.x, p.y, 20, 20, player.x, player.y, player.w * SCALE, player.h * SCALE)) {
-      if (p.type === 'spread') spreadPickups++;
-      if (p.type === 'laser') laserEnergy = Math.min(laserMax, laserEnergy + 40);
-      if (p.type === 'missile') missileCount += 3;
+      if (p.type === 'spread') {
+        spreadPickups = 5;
+        currentWeapon = 'spread';
+        playSound('levelup');
+      }
+      if (p.type === 'laser') {
+        laserEnergy = laserMax;
+        currentWeapon = 'laser';
+        playSound('levelup');
+      }
+      if (p.type === 'missile') {
+        missileCount += 3;
+        currentWeapon = 'missile';
+        playSound('shoot');
+      }
       spawnParticles(p.x, p.y, '#fff', 10, 3);
       powerups.splice(pi, 1);
     } else if (p.y > H + 20) {
