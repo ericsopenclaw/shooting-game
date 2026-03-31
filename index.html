@@ -168,10 +168,8 @@ function updatePowerups() {
     p.life--;
     if (p.life <= 0) powerups.splice(i, 1);
   }
-  // Laser energy regen
-  if (currentWeapon !== 'laser') {
-    laserEnergy = Math.min(laserMax, laserEnergy + laserRegenRate);
-  }
+  // Laser energy regen (always regen, even when not using laser)
+  laserEnergy = Math.min(laserMax, laserEnergy + laserRegenRate);
   // Shield timer countdown
   if (shieldActive > 0) shieldActive--;
 }
@@ -364,7 +362,7 @@ function spawnPowerup(x, y) {
 function shoot() {
   if (player.shootCooldown > 0 && currentWeapon !== 'laser') return;
   if (currentWeapon === 'laser') {
-    if (laserEnergy < 0.5) { currentWeapon = 'normal'; return; }
+    if (laserEnergy < 0.5) return;
     const laserW = 6 + laserLevel * 4;
     const laserDmg = 0.3 + laserLevel * 0.2;
     const laserDrain = 1.5 + laserLevel * 0.5;
@@ -388,7 +386,7 @@ function shoot() {
     return;
   }
   if (currentWeapon === 'missile') {
-    if (missileCount <= 0) { currentWeapon = 'normal'; return; }
+    if (missileCount <= 0) return;
     missileCount--;
     bullets.push({ x: player.x, y: player.y - 16 * SCALE, vy: -5 * SCALE, w: 8, h: 8, type: 'missile' });
     player.shootCooldown = 20;
