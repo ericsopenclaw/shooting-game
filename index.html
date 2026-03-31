@@ -63,6 +63,9 @@ function resize() {
   canvas.style.width = W + 'px';
   canvas.style.height = H + 'px';
   SCALE = W / 360;
+  // Position D-pad bottom-left, fire button bottom-right
+  DPAD_CENTER.x = W * 0.2;
+  DPAD_CENTER.y = H - 72;
 }
 resize();
 window.addEventListener('resize', resize);
@@ -897,58 +900,159 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
 // Touch controls
-let touchLeft = false, touchRight = false, touchUp = false, touchDown = false, touchShoot = false;
-let touchStartX = 0, touchStartY = 0;
-let touchId = null;
-let joystickX = 0, joystickY = 0;
-let joystickActive = false;
-let joystickOrigin = { x: 0, y: 0 };
+// ─── MOBILE CONTROLS ─────────────────────────────────────────────────────────
+// Fixed D-pad (left side) + Fire button (right side)
+let dpadUp = false, dpadDown = false, dpadLeft = false, dpadRight = false;
+let touchShoot = false;
+const FIRE_BTN = { x: 0, y: 0, r: 0 }; // populated in drawMobileControls
+const DPAD_CENTER = { x: 0, y: 0 };
+const DPAD_BTN_R = 28;
+const DPAD_GAP = 14;
+
+function getDPadRect(dx, dy) {
+  return {
+    x: DPAD_CENTER.x + dx * (DPAD_BTN_R * 2 + DPAD_GAP),
+    y: DPAD_CENTER.y + dy * (DPAD_BTN_R * 2 + DPAD_GAP),
+    r: DPAD_BTN_R
+  };
+}
+
+function inCircle(px, py, cx, cy, r) {
+  return (px - cx) * (px - cx) + (py - cy) * (py - cy) <= r * r;
+}
+
+function handleMobileTouch(phase, clientX, clientY, identifier) {
+  // D-pad buttons (left 45% of screen)
+  const dpadRadius = DPAD_BTN_R * 2 + DPAD_GAP;
+  const upBtn = getDPadRect(0, -1);
+  const downBtn = getDPadRect(0, 1);
+  const leftBtn = getDPadRect(-1, 0);
+  const rightBtn = getDPadRect(1, 0);
+
+  const inDpad = clientX < W * 0.45;
+
+  if (phase === 'start' || phase === 'move') {
+    dpadUp = inCircle(clientX, clientY, upBtn.x, upBtn.y, upBtn.r);
+    dpadDown = inCircle(clientX, clientY, downBtn.x, downBtn.y, downBtn.r);
+    dpadLeft = inCircle(clientX, clientY, leftBtn.x, leftBtn.y, leftBtn.r);
+    dpadRight = inCircle(clientX, clientY, rightBtn.x, rightBtn.y, rightBtn.r);
+    if (phase === 'start' && inDpad) {
+      initAudio();
+      if (state === 'title' || state === 'gameover') startGame();
+    }
+  }
+  if (phase === 'end') {
+    if (clientX < W * 0.45) {
+      dpadUp = dpadDown = dpadLeft = dpadRight = false;
+    } else {
+      touchShoot = false;
+    }
+  }
+  if (phase === 'start') {
+    // Fire button (right side)
+    if (clientX >= W * 0.45 && state === 'playing') {
+      touchShoot = true;
+      initAudio();
+    }
+  }
+}
 
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
-  initAudio();
-  if (state === 'title' || state === 'gameover') { startGame(); return; }
+  if (state === 'title' || state === 'gameover') { initAudio(); startGame(); return; }
   for (const t of e.changedTouches) {
-    if (t.clientX < W * 0.5) {
-      // Left half = joystick
-      joystickActive = true;
-      joystickOrigin.x = t.clientX;
-      joystickOrigin.y = t.clientY;
-      joystickX = 0; joystickY = 0;
-      touchId = t.identifier;
-    } else {
-      // Right half = shoot
-      touchShoot = true;
-    }
+    handleMobileTouch('start', t.clientX, t.clientY, t.identifier);
   }
 }, {passive: false});
 
 canvas.addEventListener('touchmove', e => {
   e.preventDefault();
-  for (const t of e.changedTouches) {
-    if (t.identifier === touchId) {
-      const dx = t.clientX - joystickOrigin.x;
-      const dy = t.clientY - joystickOrigin.y;
-      const maxR = 50;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      joystickX = dist > maxR ? dx / dist : dx / maxR;
-      joystickY = dist > maxR ? dy / dist : dy / maxR;
-    }
+  // Update D-pad based on all touch positions
+  dpadUp = dpadDown = dpadLeft = dpadRight = false;
+  for (const t of e.touches) {
+    handleMobileTouch('move', t.clientX, t.clientY, t.identifier);
   }
 }, {passive: false});
 
 canvas.addEventListener('touchend', e => {
   e.preventDefault();
-  for (const t of e.changedTouches) {
-    if (t.identifier === touchId) {
-      joystickActive = false;
-      joystickX = 0; joystickY = 0;
-      touchId = null;
-    } else {
-      touchShoot = false;
-    }
+  dpadUp = dpadDown = dpadLeft = dpadRight = false;
+  touchShoot = false;
+  for (const t of e.touches) {
+    handleMobileTouch('move', t.clientX, t.clientY, t.identifier);
   }
 }, {passive: false});
+
+// ─── MOBILE CONTROLS DRAWING ─────────────────────────────────────────────────
+function drawMobileControls() {
+  const isMobile = /Mobi|Android|Touch/i.test(navigator.userAgent) || ('ontouchstart' in window);
+  if (!isMobile) return;
+
+  const bw = DPAD_BTN_R;
+  const upBtn = getDPadRect(0, -1);
+  const downBtn = getDPadRect(0, 1);
+  const leftBtn = getDPadRect(-1, 0);
+  const rightBtn = getDPadRect(1, 0);
+
+  ctx.save();
+  // D-pad base
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.beginPath();
+  ctx.arc(DPAD_CENTER.x, DPAD_CENTER.y, bw * 2.8, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw D-pad buttons
+  const btns = [
+    { b: upBtn, label: '▲', dx: 0, dy: -1 },
+    { b: downBtn, label: '▼', dx: 0, dy: 1 },
+    { b: leftBtn, label: '◄', dx: -1, dy: 0 },
+    { b: rightBtn, label: '►', dx: 1, dy: 0 },
+  ];
+  for (const { b, label, dx, dy } of btns) {
+    const pressed = (dx === -1 && dpadLeft) || (dx === 1 && dpadRight) || (dy === -1 && dpadUp) || (dy === 1 && dpadDown);
+    ctx.fillStyle = pressed ? 'rgba(0,200,255,0.55)' : 'rgba(255,255,255,0.18)';
+    ctx.strokeStyle = pressed ? '#0cf' : 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, bw, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = pressed ? '#fff' : 'rgba(255,255,255,0.7)';
+    ctx.font = `bold ${bw * 0.9}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, b.x, b.y);
+  }
+
+  // Fire button
+  const fbx = W * 0.76;
+  const fby = H - 70;
+  const fbr = 38;
+  FIRE_BTN.x = fbx; FIRE_BTN.y = fby; FIRE_BTN.r = fbr;
+  ctx.shadowBlur = touchShoot ? 30 : 12;
+  ctx.shadowColor = '#f44';
+  ctx.fillStyle = touchShoot ? 'rgba(255,60,60,0.65)' : 'rgba(255,80,80,0.25)';
+  ctx.strokeStyle = touchShoot ? '#f88' : 'rgba(255,100,100,0.5)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(fbx, fby, fbr, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = touchShoot ? '#fff' : 'rgba(255,150,150,0.85)';
+  ctx.font = `bold 14px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('FIRE', fbx, fby);
+
+  // Weapon label above fire button
+  const weaponLabels = { normal: '🔵', spread: '🟡', laser: '🟢', missile: '🟠', radial: '🟣' };
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '11px sans-serif';
+  ctx.fillText(weaponLabels[currentWeapon] || '🔵', fbx, fby - fbr - 10);
+
+  ctx.restore();
+}
 
 // Click/tap to start
 canvas.addEventListener('mousedown', () => { initAudio(); if (state !== 'playing') startGame(); });
@@ -1114,14 +1218,17 @@ function gameLoop(timestamp) {
   if (keys['ArrowRight'] || keys['KeyD']) dx += 1;
   if (keys['ArrowUp'] || keys['KeyW']) dy -= 1;
   if (keys['ArrowDown'] || keys['KeyS']) dy += 1;
-  if (joystickActive) { dx += joystickX; dy += joystickY; }
+  if (dpadLeft) dx -= 1;
+  if (dpadRight) dx += 1;
+  if (dpadUp) dy -= 1;
+  if (dpadDown) dy += 1;
   const len = Math.sqrt(dx * dx + dy * dy);
   if (len > 0) { dx /= len; dy /= len; }
   player.x = Math.max(16 * SCALE, Math.min(W - 16 * SCALE, player.x + dx * spd));
   player.y = Math.max(20 * SCALE, Math.min(H - 20 * SCALE, player.y + dy * spd));
 
   // Auto-shoot or key/touch shoot
-  const doShoot = keys['Space'] || keys['KeyZ'] || touchShoot || autoShoot;
+  const doShoot = keys['Space'] || keys['KeyZ'] || touchShoot;
   if (doShoot) shoot();
   if (player.shootCooldown > 0) player.shootCooldown--;
   if (player.invincible > 0) player.invincible--;
@@ -1187,33 +1294,10 @@ function gameLoop(timestamp) {
   drawPlayer();
   drawWaveTransition();
 
-  // Touch joystick visual
-  if (joystickActive) {
-    const jx = joystickOrigin.x, jy = joystickOrigin.y;
-    ctx.save();
-    ctx.globalAlpha = 0.3;
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(jx, jy, 40, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.globalAlpha = 0.6;
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(jx + joystickX * 40, jy + joystickY * 40, 14, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-
   updateUI();
+  drawMobileControls();
   ctx.restore();
 }
-
-// Auto-shoot when no keys pressed (mobile convenience)
-let autoShoot = false;
-// On mobile, always shoot
-const isMobile = /Mobi|Android|Touch/i.test(navigator.userAgent) || ('ontouchstart' in window);
-if (isMobile) autoShoot = true;
 
 requestAnimationFrame(gameLoop);
 </script>
