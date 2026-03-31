@@ -204,7 +204,7 @@ let score = 0;
 let wave = 1;
 let enemiesLeft = 0;
 let spawnTimer = 0;
-let spawnInterval = 90;
+let spawnInterval = 75;
 let spawnCount = 0;
 let waveTotal = 5;
 let waveTransition = 0;
@@ -312,11 +312,11 @@ function drawBullets() {
 // ─── ENEMIES ──────────────────────────────────────────────────────────────────
 const enemies = [];
 const ENEMY_TYPES = {
-  grunt: { hp: 1, pts: 10, color: '#f44', glow: '#f00', w: 24, h: 20, speed: 1.2, shootable: false },
-  shooter: { hp: 2, pts: 25, color: '#f90', glow: '#f80', w: 26, h: 22, speed: 0.9, shootable: true },
-  tank: { hp: 5, pts: 60, color: '#a0f', glow: '#80f', w: 32, h: 28, speed: 0.6, shootable: false },
-  fast: { hp: 1, pts: 20, color: '#0f8', glow: '#0f0', w: 18, h: 16, speed: 2.5, shootable: false },
-  boss: { hp: 30, pts: 500, color: '#f0a', glow: '#f0f', w: 56, h: 48, speed: 0.5, shootable: true }
+  grunt: { hp: 1, pts: 10, color: '#f44', glow: '#f00', w: 24, h: 20, speed: 1.44, shootable: false },
+  shooter: { hp: 2, pts: 25, color: '#f90', glow: '#f80', w: 26, h: 22, speed: 1.08, shootable: true },
+  tank: { hp: 5, pts: 60, color: '#a0f', glow: '#80f', w: 32, h: 28, speed: 0.72, shootable: false },
+  fast: { hp: 1, pts: 20, color: '#0f8', glow: '#0f0', w: 18, h: 16, speed: 3.0, shootable: false },
+  boss: { hp: 39, pts: 500, color: '#f0a', glow: '#f0f', w: 56, h: 48, speed: 0.6, shootable: true }
 };
 
 function spawnEnemy(type, x) {
@@ -360,7 +360,7 @@ function spawnWave() {
     spawnCount = 1;
     return;
   }
-  count = 5 + wave * 2;
+  count = 6 + Math.floor(wave * 2.5);
   waveTotal = count;
   enemiesLeft = count;
   spawnCount = 0;
@@ -416,7 +416,7 @@ function updateEnemies() {
         const dist = Math.sqrt(dx * dx + dy * dy);
         const spd = 3.5 * SCALE;
         enemyBullets.push({ x: e.x, y: e.y + e.h / 2, vx: dx / dist * spd, vy: dy / dist * spd });
-        e.shootTimer = (e.type === 'boss' ? 25 : 70) - Math.min(wave * 3, 30);
+        e.shootTimer = (e.type === 'boss' ? 21 : 60) - Math.min(wave * 3, 30);
         if (e.type === 'boss') playSound('boss');
       }
     }
