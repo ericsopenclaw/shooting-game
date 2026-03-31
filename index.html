@@ -903,7 +903,6 @@ let joystickX = 0, joystickY = 0;
 let joystickActive = false;
 let joystickOrigin = { x: 0, y: 0 };
 let joystickTouchId = null;
-let touchShoot = false;
 const JOYSTICK_R = 38;
 
 canvas.addEventListener('touchstart', e => {
@@ -918,8 +917,6 @@ canvas.addEventListener('touchstart', e => {
       joystickOrigin.y = t.clientY;
       joystickX = 0;
       joystickY = 0;
-    } else if (state === 'playing') {
-      touchShoot = true;
     }
   }
 }, {passive: false});
@@ -942,18 +939,14 @@ canvas.addEventListener('touchmove', e => {
 
 canvas.addEventListener('touchend', e => {
   e.preventDefault();
-  let hasJoystick = false, hasShoot = false;
   for (const t of e.touches) {
-    if (t.identifier === joystickTouchId) hasJoystick = true;
-    else hasShoot = true;
+    if (t.identifier === joystickTouchId) {
+      joystickActive = false;
+      joystickX = 0;
+      joystickY = 0;
+      joystickTouchId = null;
+    }
   }
-  if (!hasJoystick) {
-    joystickActive = false;
-    joystickX = 0;
-    joystickY = 0;
-    joystickTouchId = null;
-  }
-  touchShoot = hasShoot;
 }, {passive: false});
 
 // ─── MOBILE CONTROLS DRAWING ─────────────────────────────────────────────────
@@ -962,8 +955,7 @@ function drawMobileControls() {
   if (!isMobile) return;
   ctx.save();
 
-  // Joystick outer ring (dashed circle)
-  if (joystickActive || true) {
+  if (joystickActive) {
     ctx.strokeStyle = 'rgba(255,255,255,0.18)';
     ctx.lineWidth = 2;
     ctx.setLineDash([5, 5]);
@@ -971,27 +963,19 @@ function drawMobileControls() {
     ctx.arc(joystickOrigin.x, joystickOrigin.y, JOYSTICK_R, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
+
+    const thumbX = joystickOrigin.x + joystickX * JOYSTICK_R;
+    const thumbY = joystickOrigin.y + joystickY * JOYSTICK_R;
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = '#0af';
+    ctx.fillStyle = 'rgba(0,190,255,0.6)';
+    ctx.strokeStyle = '#0cf';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(thumbX, thumbY, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
   }
-
-  // Joystick thumb dot
-  const thumbX = joystickOrigin.x + joystickX * JOYSTICK_R;
-  const thumbY = joystickOrigin.y + joystickY * JOYSTICK_R;
-  ctx.shadowBlur = joystickActive ? 18 : 8;
-  ctx.shadowColor = '#0af';
-  ctx.fillStyle = joystickActive ? 'rgba(0,190,255,0.6)' : 'rgba(255,255,255,0.15)';
-  ctx.strokeStyle = joystickActive ? '#0cf' : 'rgba(255,255,255,0.35)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(thumbX, thumbY, 20, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  // Right side hint
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = 'rgba(255,255,255,0.1)';
-  ctx.font = '10px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('TAP RIGHT TO FIRE', W * 0.76, H - 14);
 
   ctx.restore();
 }
@@ -1167,7 +1151,7 @@ function gameLoop(timestamp) {
   player.y = Math.max(20 * SCALE, Math.min(H - 20 * SCALE, player.y + dy * spd));
 
   // Auto-shoot or key/touch shoot
-  const doShoot = keys['Space'] || keys['KeyZ'] || touchShoot;
+  const doShoot = keys['Space'] || keys['KeyZ'] || joystickActive;
   if (doShoot) shoot();
   if (player.shootCooldown > 0) player.shootCooldown--;
   if (player.invincible > 0) player.invincible--;
