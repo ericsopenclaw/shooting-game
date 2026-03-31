@@ -55,6 +55,7 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 let W, H, SCALE;
+const DPAD_CENTER = { x: 0, y: 0 };
 
 function resize() {
   const size = Math.min(window.innerWidth, window.innerHeight, 540);
@@ -904,8 +905,7 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 // Fixed D-pad (left side) + Fire button (right side)
 let dpadUp = false, dpadDown = false, dpadLeft = false, dpadRight = false;
 let touchShoot = false;
-const FIRE_BTN = { x: 0, y: 0, r: 0 }; // populated in drawMobileControls
-const DPAD_CENTER = { x: 0, y: 0 };
+const FIRE_BTN = { x: 0, y: 0, r: 0 };
 const DPAD_BTN_R = 28;
 const DPAD_GAP = 14;
 
