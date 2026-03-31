@@ -321,6 +321,11 @@ let laserRegenRate = 0.4;
 let missileCount = 0;
 let hasRadial = false;
 let spreadPickups = 0;
+
+// Weapon levels (0=max level achieved, use level() to check)
+let spreadLevel = 0;    // max 5
+let laserLevel = 0;     // max 3
+let radialLevel = 0;    // max 5
 const powerups = [];
 
 function switchWeapon(w) {
@@ -340,11 +345,13 @@ function shoot() {
   if (player.shootCooldown > 0 && currentWeapon !== 'laser') return;
   if (currentWeapon === 'laser') {
     if (laserEnergy < 0.5) { currentWeapon = 'normal'; return; }
-    laserEnergy -= 1.5;
-    // Laser deals damage directly to enemies in beam path
+    const laserW = 6 + laserLevel * 4;
+    const laserDmg = 0.3 + laserLevel * 0.2;
+    const laserDrain = 1.5 + laserLevel * 0.5;
+    laserEnergy -= laserDrain;
     for (const e of enemies) {
-      if (Math.abs(e.x - player.x) < (e.w / 2 + 12)) {
-        e.hp -= 0.3;
+      if (Math.abs(e.x - player.x) < (e.w / 2 + laserW + 4)) {
+        e.hp -= laserDmg;
         e.hitFlash = 3;
         spawnParticles(e.x, player.y - 20 * SCALE, '#0f8', 1, 1);
         if (e.hp <= 0) {
@@ -369,10 +376,11 @@ function shoot() {
     return;
   }
   if (currentWeapon === 'radial') {
-    // Fire 12 bullets in a circle
-    for (let i = 0; i < 12; i++) {
-      const angle = (Math.PI * 2 * i) / 12 - Math.PI / 2;
-      const spd = 8 * SCALE;
+    // Fire bullets in a circle, count increases with level
+    const count = 8 + radialLevel * 4;
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count - Math.PI / 2;
+      const spd = (8 + radialLevel) * SCALE;
       bullets.push({
         x: player.x,
         y: player.y - 10 * SCALE,
@@ -382,16 +390,25 @@ function shoot() {
         type: 'radial'
       });
     }
-    player.shootCooldown = 25;
+    player.shootCooldown = Math.max(10, 25 - radialLevel * 4);
     playSound('shoot');
     return;
   }
   bullets.push({ x: player.x, y: player.y - 16 * SCALE, vy: -10 * SCALE, w: 3, h: 12, type: 'normal' });
   if (currentWeapon === 'spread' || wave >= 4) {
-    bullets.push({ x: player.x - 8 * SCALE, y: player.y - 8 * SCALE, vx: -1.5, vy: -9 * SCALE, w: 3, h: 10, type: 'spread' });
-    bullets.push({ x: player.x + 8 * SCALE, y: player.y - 8 * SCALE, vx: 1.5, vy: -9 * SCALE, w: 3, h: 10, type: 'spread' });
+    const count = spreadLevel > 0 ? 2 + spreadLevel * 2 : (wave >= 4 ? 2 : 0);
+    const spread = 0.15 + spreadLevel * 0.08;
+    for (let i = 0; i < count; i++) {
+      const angle = -Math.PI / 2 + (i - (count - 1) / 2) * spread;
+      bullets.push({
+        x: player.x, y: player.y - 12 * SCALE,
+        vx: Math.cos(angle) * 9 * SCALE,
+        vy: Math.sin(angle) * 9 * SCALE,
+        w: 3, h: 10, type: 'spread'
+      });
+    }
   }
-  player.shootCooldown = currentWeapon === 'spread' ? 8 : (player.shootDelay - Math.min(wave * 1.5, 8));
+  player.shootCooldown = currentWeapon === 'spread' ? Math.max(4, 10 - spreadLevel * 1.5) : (player.shootDelay - Math.min(wave * 1.5, 8));
   playSound('shoot');
 }
 
@@ -749,11 +766,12 @@ function checkCollisions() {
     const p = powerups[pi];
     if (rectsOverlap(p.x, p.y, 20, 20, player.x, player.y, player.w * SCALE, player.h * SCALE)) {
       if (p.type === 'spread') {
-        spreadPickups = 5;
+        if (spreadLevel < 5) spreadLevel++;
         currentWeapon = 'spread';
         playSound('levelup');
       }
       if (p.type === 'laser') {
+        laserLevel = Math.min(3, laserLevel + 1);
         laserEnergy = laserMax;
         currentWeapon = 'laser';
         playSound('levelup');
@@ -764,6 +782,7 @@ function checkCollisions() {
         playSound('shoot');
       }
       if (p.type === 'radial') {
+        radialLevel = Math.min(5, radialLevel + 1);
         hasRadial = true;
         currentWeapon = 'radial';
         playSound('levelup');
@@ -899,9 +918,11 @@ canvas.addEventListener('mousedown', () => { initAudio(); if (state !== 'playing
 // ─── UI ───────────────────────────────────────────────────────────────────────
 function updateUI() {
   document.getElementById('scoreDisplay').innerHTML =
-    'SCORE: ' + score + '&nbsp;&nbsp;<span style="color:#ff0">★' + spreadPickups + '</span>' +
-    '&nbsp;&nbsp;<span style="color:#0f8">⚡' + Math.floor(laserEnergy) + '</span>' +
-    '&nbsp;&nbsp;<span style="color:#f80">🚀' + missileCount + '</span>';
+    'SCORE: ' + score +
+    '&nbsp;S:<span style="color:#ff0">' + spreadLevel + '</span>' +
+    '&nbsp;L:<span style="color:#0f8">' + laserLevel + '</span>' +
+    '&nbsp;M:<span style="color:#f80">' + missileCount + '</span>' +
+    '&nbsp;R:<span style="color:#f0f">' + radialLevel + '</span>';
   document.getElementById('waveDisplay').textContent =
     bossSpawned ? '⚠️ BOSS ⚠️' : 'WAVE ' + wave;
   const hbar = document.getElementById('healthBar');
@@ -1010,6 +1031,9 @@ function startGame() {
   laserEnergy = laserMax;
   missileCount = 0;
   spreadPickups = 0;
+  spreadLevel = 0;
+  laserLevel = 0;
+  radialLevel = 0;
   hasRadial = false;
   resetPlayer();
   spawnWave();
@@ -1104,13 +1128,13 @@ function gameLoop(timestamp) {
     grad.addColorStop(0, 'rgba(0,255,128,0.8)');
     grad.addColorStop(1, 'rgba(0,255,128,0)');
     ctx.strokeStyle = grad;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 4 + laserLevel * 3;
     ctx.beginPath();
     ctx.moveTo(player.x, player.y - 16 * SCALE);
     ctx.lineTo(player.x, 0);
     ctx.stroke();
     ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2 + laserLevel;
     ctx.beginPath();
     ctx.moveTo(player.x, player.y - 16 * SCALE);
     ctx.lineTo(player.x, 0);
